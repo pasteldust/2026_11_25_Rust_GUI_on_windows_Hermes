@@ -1,0 +1,32 @@
+[package]
+name = "paint-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "GUI アプリケーション: ViewModel と egui/eframe による画面"
+
+[lib]
+name = "paint_app"
+path = "src/lib.rs"
+
+[[bin]]
+name = "paint-app"
+path = "src/main.rs"
+
+[dependencies]
+paint-core.workspace = true
+paint-engine.workspace = true
+paint-persist.workspace = true
+eframe.workspace = true
+egui.workspace = true
+rfd.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+image.workspace = true

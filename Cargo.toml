@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/paint-core",
+    "crates/paint-engine",
+    "crates/paint-persist",
+    "crates/paint-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+authors = ["pasteldust"]
+repository = "https://github.com/pasteldust/2026_11_25_Rust_GUI_on_windows_Hermes"
+
+[workspace.dependencies]
+paint-core = { path = "crates/paint-core" }
+paint-engine = { path = "crates/paint-engine" }
+paint-persist = { path = "crates/paint-persist" }
+
+thiserror = "2.0"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
+flate2 = "1.1"
+eframe = { version = "0.37", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "x11",
+    "wayland",
+] }
+egui = "0.37"
+rfd = { version = "0.18", default-features = false, features = ["xdg-portal", "pollster"] }
+serde_json = "1.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = { level = "warn", priority = 1 }
