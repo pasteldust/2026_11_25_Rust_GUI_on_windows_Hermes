@@ -49,7 +49,15 @@ fn main() -> ExitCode {
     match eframe::run_native(
         "お絵描き",
         options,
-        Box::new(move |_cc| Ok(Box::new(PainterApp::new(view_model)))),
+        Box::new(move |cc| {
+            // 日本語の字形は egui に同梱されていないので、OS のフォントを借りる
+            if paint_app::app::install_japanese_font(&cc.egui_ctx).is_none() {
+                eprintln!(
+                    "日本語フォントが見つかりませんでした。日本語は豆腐（□）で表示されます。"
+                );
+            }
+            Ok(Box::new(PainterApp::new(view_model)))
+        }),
     ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

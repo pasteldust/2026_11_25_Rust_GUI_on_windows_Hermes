@@ -597,15 +597,10 @@ impl eframe::App for PainterApp {
             });
         });
 
-        // 下: ステータスバー。
+        // 下: ステータスバー（座標・ズーム・ツール・レイヤーは ViewModel が出す）。
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(self.view_model.status());
-                ui.separator();
-                ui.label(format!("ズーム {:.0}%", self.view_model.zoom() * 100.0));
-                if self.view_model.is_dirty() {
-                    ui.colored_label(Color32::from_rgb(220, 80, 80), "●未保存");
-                }
                 if let Some(message) = &self.error {
                     ui.separator();
                     ui.colored_label(Color32::from_rgb(230, 70, 70), format!("エラー: {message}"));
@@ -684,4 +679,93 @@ fn draw_checkerboard(painter: &egui::Painter, image_rect: egui::Rect) {
 /// [`Rgba`] を egui の [`Color32`] へ。
 fn to_color32(color: Rgba) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
+}
+
+// ---- 日本語フォント ------------------------------------------------------
+
+/// 日本語を表示するためのフォント候補（OS ごと）。
+///
+/// egui に同梱されているフォントは日本語の字形を持たないため、画面の日本語が
+/// 豆腐（□）になってしまう。実行時に OS のフォントを借りて解決する。
+pub fn japanese_font_candidates() -> Vec<String> {
+    let windows = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".to_string());
+    vec![
+        // Windows 10 / 11
+        format!(r"{windows}\Fonts\YuGothM.ttc"),
+        format!(r"{windows}\Fonts\meiryo.ttc"),
+        format!(r"{windows}\Fonts\msgothic.ttc"),
+        format!(r"{windows}\Fonts\msmincho.ttc"),
+        // Linux
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc".to_string(),
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc".to_string(),
+        "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf".to_string(),
+        "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf".to_string(),
+        // macOS（配布対象ではないが、開発機で見られると便利）
+        "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc".to_string(),
+        "/System/Library/Fonts/Hiragino Sans GB.ttc".to_string(),
+    ]
+}
+
+/// 存在する最初の候補を選ぶ（無ければ `None`）。
+pub fn pick_font_path(candidates: &[String], exists: impl Fn(&str) -> bool) -> Option<String> {
+    candidates.iter().find(|path| exists(path)).cloned()
+}
+
+/// OS の日本語フォントを egui に登録し、読み込んだパスを返す。
+///
+/// 見つからなくても起動は続ける（日本語だけが豆腐になる）。
+pub fn install_japanese_font(ctx: &egui::Context) -> Option<String> {
+    let path = pick_font_path(&japanese_font_candidates(), |p| {
+        std::path::Path::new(p).is_file()
+    })?;
+    let bytes = std::fs::read(&path).ok()?;
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "japanese_os".to_owned(),
+        std::sync::Arc::new(egui::FontData::from_owned(bytes)),
+    );
+    // 既定フォントの後ろに足す（英数字は今までどおり、日本語だけ補う）
+    for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+        fonts
+            .families
+            .entry(family)
+            .or_default()
+            .push("japanese_os".to_owned());
+    }
+    ctx.set_fonts(fonts);
+    Some(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pick_font_path_returns_first_existing() {
+        let candidates = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        assert_eq!(
+            pick_font_path(&candidates, |p| p == "b").as_deref(),
+            Some("b")
+        );
+    }
+
+    #[test]
+    fn pick_font_path_returns_none_when_nothing_exists() {
+        let candidates = vec!["x".to_string(), "y".to_string()];
+        assert_eq!(pick_font_path(&candidates, |_| false), None);
+    }
+
+    #[test]
+    fn candidates_cover_windows_and_linux() {
+        let list = japanese_font_candidates();
+        assert!(
+            list.iter()
+                .any(|p| p.contains("YuGothM") || p.contains("meiryo")),
+            "Windows の候補が無い"
+        );
+        assert!(
+            list.iter().any(|p| p.contains("NotoSansCJK")),
+            "Linux の候補が無い"
+        );
+    }
 }
