@@ -1,0 +1,17 @@
+[package]
+name = "paint-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "ドメイン層: キャンバス・レイヤー・色・幾何（他クレートに依存しない）"
+
+[dependencies]
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]

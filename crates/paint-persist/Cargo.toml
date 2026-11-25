@@ -1,0 +1,20 @@
+[package]
+name = "paint-persist"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "永続化: 独自形式 .paint の保存・読込と画像の入出力"
+
+[dependencies]
+paint-core.workspace = true
+thiserror.workspace = true
+image.workspace = true
+flate2.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]

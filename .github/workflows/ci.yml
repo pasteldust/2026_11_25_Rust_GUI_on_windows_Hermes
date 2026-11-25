@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    name: cargo fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: cargo clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: GUI ビルド用のシステムライブラリ (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libxkbcommon-x11-dev libxcb-randr0-dev libxcb-xtest0-dev \
+            libxcb-xinerama0-dev libxcb-shape0-dev libxcb-xkb-dev libxcb-render0-dev \
+            libxcb-shm0-dev libgl1-mesa-dev libegl1-mesa-dev libwayland-dev
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: cargo test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: GUI ビルド用のシステムライブラリ (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libxkbcommon-x11-dev libxcb-randr0-dev libxcb-xtest0-dev \
+            libxcb-xinerama0-dev libxcb-shape0-dev libxcb-xkb-dev libxcb-render0-dev \
+            libxcb-shm0-dev libgl1-mesa-dev libegl1-mesa-dev libwayland-dev
+      - run: cargo test --workspace --all-targets
+
+  build-release:
+    name: cargo build --release (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: paint-app-linux
+            binary: target/release/paint-app
+          - os: windows-latest
+            artifact: paint-app-windows
+            binary: target/release/paint-app.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: GUI ビルド用のシステムライブラリ (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libxkbcommon-x11-dev libxcb-randr0-dev libxcb-xtest0-dev \
+            libxcb-xinerama0-dev libxcb-shape0-dev libxcb-xkb-dev libxcb-render0-dev \
+            libxcb-shm0-dev libgl1-mesa-dev libegl1-mesa-dev libwayland-dev
+      - run: cargo build --release --workspace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.binary }}
+          if-no-files-found: error
+
+  e2e-windows:
+    name: E2E (windows-latest)
+    runs-on: windows-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: build release
+        run: cargo build --release --workspace
+      - name: self test（起動・描画・保存・再読込・Undo・Redo）
+        shell: pwsh
+        run: |
+          $out = "$env:RUNNER_TEMP\selftest"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          & target\release\paint-app.exe --self-test $out | Tee-Object -Variable lines
+          $lines | Out-File -Encoding utf8 $out\selftest.log
+          if ($LASTEXITCODE -ne 0) { throw "self-test が失敗しました (exit $LASTEXITCODE)" }
+      - name: 成果物を保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-windows
+          path: ${{ runner.temp }}/selftest
